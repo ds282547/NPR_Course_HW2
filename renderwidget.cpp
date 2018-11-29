@@ -14,6 +14,7 @@ void RenderWidget::paintEvent(QPaintEvent *e)
     Edge *e1;
     Node *LT,*RT,*RB,*LB;
     Node *base_node,*temp_node,*temp_node2;
+    Node *cur_RT;
     // first cell
     genCellSize(w,h);
     LB = createNode(QPoint(0,h));
@@ -62,39 +63,57 @@ void RenderWidget::paintEvent(QPaintEvent *e)
 
     } while (tx<width);
 
-    genCellSize(w,h);
 
-    temp_node = base_node;
+
+    cur_RT = base_node;
     ty = 0;
     tx = 0;
-    last_tx = 0;
     for(int i=0;i<5;++i){
 
 
         qDebug() << "====";
-        ty = temp_node->p.y();
-        while (temp_node->p.x()-last_tx<w){
-            qDebug() << temp_node->p;
-            if(temp_node->right){
-                temp_node = temp_node->right;
-            }else if(temp_node->lower){
+        genCellSize(w,h);
 
-                temp_node = temp_node->lower;
-                qDebug() << "L = " << temp_node->p;
-            } else if(temp_node->upper){
-                temp_node = temp_node->upper;
-                qDebug() << "U = " << temp_node->p;
+        ty = cur_RT->y();
+        while (cur_RT->x()<tx+w){
+            qDebug() << cur_RT->p;
+            if(cur_RT->right){
+                cur_RT = cur_RT->right;
+            }else if(cur_RT->lower){
+                cur_RT = cur_RT->lower;
+                qDebug() << "L = " << cur_RT->p;
+            } else if(cur_RT->upper){
+                cur_RT = cur_RT->upper;
+                qDebug() << "U = " << cur_RT->p;
             }
-            ty = std::max(ty,temp_node->p.y());
+            ty = std::max(ty,cur_RT->y());
         }
-        LB = createNode(QPoint(last_tx+0,ty+h));
-        RB = createNode(QPoint(last_tx+w,ty+h));
-        RT = createNode(QPoint(last_tx+w,ty));
+        LB = createNode(QPoint(tx+0,ty+h));
+        RB = createNode(QPoint(tx+w,ty+h));
+        //RT = createNode(QPoint(tx+w,ty));
+
+        //procee top-side edge
+        debugPt(painter,cur_RT->p);
+        if(cur_RT->y()>ty){
+            // split edge
+            RT = createNode(QPoint(tx+w,ty));
+
+        } else if(cur_RT->y()<ty){
+            RT = createNode(QPoint(tx+w,ty));
+            debugPt(painter,RT->p,Qt::green);
+        } else {
+            //share RT pt
+            qDebug() << "Eq!";
+            RT = createNode(QPoint(tx+w,ty));
+            debugPt(painter,RT->p,Qt::blue);
+        }
 
         createEdge(LB,RB,true); // Left to right
         createEdge(RT,RB,false); // Top to bottom
 
-        last_tx+=w;
+
+
+        tx+=w;
     }
     drawResult(painter);
     clearVector();
@@ -111,6 +130,12 @@ RenderWidget::RenderWidget(QWidget *parent):QWidget(parent)
     RHHalf = RH/2;
     width = 512;
     height = 512;
+}
+
+void RenderWidget::debugPt(QPainter &painter, QPoint p, QColor color)
+{
+    painter.setBrush(color);
+    painter.drawEllipse(p,2,2);
 }
 
 void RenderWidget::drawResult(QPainter &painter)

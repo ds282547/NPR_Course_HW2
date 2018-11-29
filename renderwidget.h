@@ -22,6 +22,12 @@ public:
         upper = lower = right = left = NULL;
         et = eb = er = el = NULL;
     }
+    inline int x() const{
+        return p.x();
+    }
+    inline int y() const{
+        return p.y();
+    }
 
 
 };
@@ -58,6 +64,7 @@ private:
     QVector<Edge*> edges;
     QVector<Node*> nodes;
 
+    void debugPt(QPainter &painter,QPoint p, QColor color=Qt::red);
     void drawResult(QPainter &painter);
     void clearVector();
     void createEdge(Node *n1, Node *n2, bool LeftRight);
