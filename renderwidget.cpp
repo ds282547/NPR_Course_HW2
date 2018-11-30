@@ -14,7 +14,10 @@ void RenderWidget::paintEvent(QPaintEvent *e)
     Edge *e1;
     Node *LT,*RT,*RB,*LB;
     Node *base_node,*temp_node,*temp_node2;
-    Node *cur_RT;
+    Node *cur_RT,*last_cur_RT;
+
+    QList<Node*> skyline;
+
     // first cell
     genCellSize(w,h);
     LB = createNode(QPoint(0,h));
@@ -25,7 +28,7 @@ void RenderWidget::paintEvent(QPaintEvent *e)
     createEdge(LB,RB,true); // Left to right
     createEdge(RT,RB,false); // Top to bottom
     tx = w;
-
+    skyline.push_back(LB);skyline.push_back(RB);
 
     bool notLastCell = true;
     do {
@@ -38,6 +41,8 @@ void RenderWidget::paintEvent(QPaintEvent *e)
         }
         LB = createNode(QPoint(tx,h));
         RB = createNode(QPoint(tx+w,h));
+
+        skyline.push_back(LB);skyline.push_back(RB);
 
         createEdge(LB,RB,true);
         // Omit Last Edge
@@ -59,59 +64,62 @@ void RenderWidget::paintEvent(QPaintEvent *e)
             temp_node->right = LB;
             LB->left = temp_node;
         }
+
         tx+=w;
 
     } while (tx<width);
 
+    /*
+    for(auto it=skyline.begin();it!=skyline.end();it++){
+        debugPt(painter,(*it)->p);
+    }
+    */
 
-
-    cur_RT = base_node;
+    auto cur_it = skyline.begin();
+    auto bcktr_it = cur_it;
     ty = 0;
     tx = 0;
     for(int i=0;i<5;++i){
 
 
-        qDebug() << "====";
+        //qDebug() << "====";
         genCellSize(w,h);
 
-        ty = cur_RT->y();
-        while (cur_RT->x()<tx+w){
-            qDebug() << cur_RT->p;
-            if(cur_RT->right){
-                cur_RT = cur_RT->right;
-            }else if(cur_RT->lower){
-                cur_RT = cur_RT->lower;
-                qDebug() << "L = " << cur_RT->p;
-            } else if(cur_RT->upper){
-                cur_RT = cur_RT->upper;
-                qDebug() << "U = " << cur_RT->p;
-            }
-            ty = std::max(ty,cur_RT->y());
+        ty = (*cur_it)->y();
+        while ((*cur_it)->x()<tx+w){
+            ty = std::max(ty,(*cur_it)->y());
+            cur_it++;
         }
         LB = createNode(QPoint(tx+0,ty+h));
         RB = createNode(QPoint(tx+w,ty+h));
-        //RT = createNode(QPoint(tx+w,ty));
-
-        //procee top-side edge
-        debugPt(painter,cur_RT->p);
-        if(cur_RT->y()>ty){
-            // split edge
+        if ((*cur_it)->p == QPoint(tx+w,ty))
+            RT = (*cur_it);
+        else
             RT = createNode(QPoint(tx+w,ty));
-
-        } else if(cur_RT->y()<ty){
-            RT = createNode(QPoint(tx+w,ty));
-            debugPt(painter,RT->p,Qt::green);
-        } else {
-            //share RT pt
-            qDebug() << "Eq!";
-            RT = createNode(QPoint(tx+w,ty));
-            debugPt(painter,RT->p,Qt::blue);
-        }
 
         createEdge(LB,RB,true); // Left to right
         createEdge(RT,RB,false); // Top to bottom
 
 
+        Node *bcktr = RT;
+        bcktr_it = cur_it;
+        if ((*cur_it)->x()>tx+w && (*cur_it)->y()==ty){
+            //split
+            bcktr_it--;
+            (*bcktr_it)->right = RT;
+            (*bcktr_it)->er->n2 = RT;
+            createEdge(RT,*cur_it,true);
+
+        }
+
+
+        while ((*bcktr_it)->x()>tx && cur_it!=skyline.begin()){
+
+            if ( (*bcktr_it)->y()==ty){
+                createEdge(*bcktr_it,RT,true);
+            }
+            bcktr_it--;
+        }
 
         tx+=w;
     }
@@ -140,8 +148,9 @@ void RenderWidget::debugPt(QPainter &painter, QPoint p, QColor color)
 
 void RenderWidget::drawResult(QPainter &painter)
 {
-    painter.setPen(Qt::black);
+
     for(auto it=edges.begin();it!=edges.end();it++){
+        painter.setPen(QColor(rand()&255,rand()&255,rand()&255));
         Edge* ed = *it;
         QPainterPath path;
 
