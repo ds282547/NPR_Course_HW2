@@ -18,6 +18,13 @@ MainWindow::~MainWindow()
     delete ui;
 }
 
+void MainWindow::keyPressEvent(QKeyEvent *event)
+{
+    if(event->key() == Qt::Key::Key_M){
+        ui->widget->update();
+    }
+}
+
 
 
 void MainWindow::on_pushButtonDraw_released()

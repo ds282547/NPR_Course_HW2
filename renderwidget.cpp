@@ -13,12 +13,14 @@ void RenderWidget::paintEvent(QPaintEvent *e)
     int tx,ty,last_tx,h,w,last_h;
     Edge *e1;
     Node *LT,*RT,*RB,*LB;
-    Node *base_node,*temp_node,*temp_node2;
-    Node *cur_RT,*last_cur_RT;
+    Node *base_node,*last_RB,*temp_node2;
+    Node *cur_RT,*last_RT;
+    bool notLastCell = true;
+    bool sameHeight;
 
     QList<Node*> skyline;
 
-    // first cell
+    // 左上角第一格
     genCellSize(w,h);
     LB = createNode(QPoint(0,h));
     RB = createNode(QPoint(w,h));
@@ -30,16 +32,23 @@ void RenderWidget::paintEvent(QPaintEvent *e)
     tx = w;
     skyline.push_back(LB);skyline.push_back(RB);
 
-    bool notLastCell = true;
+    notLastCell = true;
     do {
         last_h = h;
-        temp_node = RB;
+        last_RB = RB;
         genCellSize(w,h);
         if(tx+w>width){
             w = width-tx;
             notLastCell = false;
         }
-        LB = createNode(QPoint(tx,h));
+
+        if (sameHeight = (last_h == h) ){
+            //share right-bottom pt
+            qDebug() << "same height";
+            LB = last_RB;
+        } else {
+            LB = createNode(QPoint(tx,h));
+        }
         RB = createNode(QPoint(tx+w,h));
 
         skyline.push_back(LB);skyline.push_back(RB);
@@ -51,18 +60,17 @@ void RenderWidget::paintEvent(QPaintEvent *e)
             createEdge(RT,RB,false);
         }
         // Draw Higher Line
-        if(h>last_h){
-            createEdge(temp_node,LB,false);
+        if(!sameHeight) {
+            if(h>last_h){
+                createEdge(last_RB,LB,false);
 
-        } else if(h<last_h){
-            // split edge
-            temp_node2 = temp_node->upper;
-            temp_node->upper = LB;
-            temp_node->et->change_adj(temp_node,LB);
-            createEdge( temp_node2,LB,false);
-        } else {
-            temp_node->right = LB;
-            LB->left = temp_node;
+            } else if(h<last_h){
+                // split edge
+                temp_node2 = last_RB->upper;
+                last_RB->upper = LB;
+                last_RB->et->change_adj(last_RB,LB);
+                createEdge( temp_node2,LB,false);
+            }
         }
 
         tx+=w;
@@ -75,15 +83,27 @@ void RenderWidget::paintEvent(QPaintEvent *e)
     }
     */
 
+    // 第二層
+
     auto cur_it = skyline.begin();
     auto bcktr_it = cur_it;
+    last_RT = (*cur_it);
+    last_RB = NULL;
     ty = 0;
     tx = 0;
-    for(int i=0;i<5;++i){
-
+    notLastCell = true;
+    //for(int i=0;i<5;++i){
+    do {
 
         //qDebug() << "====";
         genCellSize(w,h);
+
+
+
+        if(tx+w>width){
+            w = width-tx;
+            notLastCell = false;
+        }
 
         ty = (*cur_it)->y();
         while ((*cur_it)->x()<tx+w){
@@ -98,35 +118,107 @@ void RenderWidget::paintEvent(QPaintEvent *e)
             RT = createNode(QPoint(tx+w,ty));
 
         createEdge(LB,RB,true); // Left to right
-        createEdge(RT,RB,false); // Top to bottom
+        if(notLastCell)
+            createEdge(RT,RB,false); // Top to bottom
 
+        if(last_RB){
+            if(last_RB->y() > LB->y()){
+                createEdge(LB,last_RB,false);
+            } else if (last_RB->y() < LB->y()){
+                createEdge(last_RB,LB,false);
+            }
+        }
 
         Node *bcktr = RT;
+
+        Node *edgeRightPt;
+        bool isRightPt; // for top-edge
+
         bcktr_it = cur_it;
+
         if ((*cur_it)->x()>tx+w && (*cur_it)->y()==ty){
-            //split
+            //split ---.---
+            //         |
             bcktr_it--;
+
             (*bcktr_it)->right = RT;
             (*bcktr_it)->er->n2 = RT;
+            //qDebug() << bcktr_it - skyline.begin();
             createEdge(RT,*cur_it,true);
+            cur_it = skyline.insert(bcktr_it+1,RT);
 
+            isRightPt = false;
+        } else {
+            // no split new edge
+            //  ----------
+            //
+            //   ------.
+            //         |
+            isRightPt = true;
+            edgeRightPt = RT;
         }
 
-
-        while ((*bcktr_it)->x()>tx && cur_it!=skyline.begin()){
-
+        while (cur_it!=skyline.begin() && (*bcktr_it)->x()>tx){
             if ( (*bcktr_it)->y()==ty){
-                createEdge(*bcktr_it,RT,true);
+                isRightPt = !isRightPt;
+                if ( isRightPt){
+                    edgeRightPt = *bcktr_it;
+
+                } else {
+                    createEdge(*bcktr_it,edgeRightPt,true);
+                }
+
             }
             bcktr_it--;
-        }
 
+        }
+        // 左上角的上層是密合邊
+        if ((*bcktr_it)->y()==ty){
+
+            if (last_RT->y() > ty){
+                //split
+                LT = createNode(QPoint(tx,ty));
+                Node* temp_node = (*bcktr_it)->right;
+                (*bcktr_it)->right = LT;
+                (*bcktr_it)->er->n2 = LT;
+                // 水平左側分割
+                createEdge(LT,temp_node,true);
+                // 垂直分割
+                createEdge(LT,last_RT,false);
+            } else if (last_RT->y() == ty){
+                LT = last_RT;
+            }
+        }
+        // 上邊與上層有空隙
+        if (isRightPt){
+            debugPt(painter,last_RT->p);
+            if (last_RT->y() > ty){
+                LT = createNode(QPoint(tx,ty));
+                createEdge(LT,last_RT,false);
+            } else if (last_RT->y() == ty){
+                LT = last_RT;
+            } else {
+                //split
+                LT = createNode(QPoint(tx,ty));
+
+                if (last_RT->lower) {
+                    createEdge(LT , last_RT->lower,false);
+                    last_RT->lower = LT;
+                    last_RT->eb->n2 = LT;
+                }
+            }
+            createEdge(LT,edgeRightPt,true);
+        }
+        last_RT = RT;
+        last_RB = RB;
         tx+=w;
-    }
+    } while(tx<width);
     drawResult(painter);
     clearVector();
 
+
 }
+
 
 RenderWidget::RenderWidget(QWidget *parent):QWidget(parent)
 {

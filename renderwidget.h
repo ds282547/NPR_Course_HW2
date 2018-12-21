@@ -11,6 +11,7 @@
 
 #include <QDebug>
 
+
 class Edge;
 class Node {
 public:
@@ -55,6 +56,7 @@ public:
 
 
     void paintEvent(QPaintEvent * e /* event */);
+
     RenderWidget(QWidget *parent);
 private:
     int LW,LH,RW,RWHalf,RH,RHHalf;
