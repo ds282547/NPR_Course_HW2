@@ -21,7 +21,9 @@ MainWindow::~MainWindow()
 void MainWindow::keyPressEvent(QKeyEvent *event)
 {
     if(event->key() == Qt::Key::Key_M){
+        ui->widget->regenRock();
         ui->widget->update();
+
     }
 }
 
