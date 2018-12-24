@@ -14,6 +14,70 @@
 #include <random>
 
 
+class Point3{
+public:
+    qreal x,y,z;
+    Point3 (){
+        x=y=z=0;
+    }
+    Point3 (qreal x,qreal y,qreal z):x(x),y(y),z(z){
+    }
+    Point3 (const QPointF &pt,qreal z):x(pt.x()),y(pt.y()),z(z){
+    }
+    Point3 operator -(const Point3 &b){
+        Point3 m(x-b.x,y-b.y,z-b.z);
+        return m;
+    }
+    QPointF toPoint2D(){
+        return QPointF(x,y);
+    }
+    void set(const QPointF &pt,qreal _z){
+        x=pt.x();y=pt.y();z=_z;
+    }
+    qreal length(){
+        return qSqrt(x*x+y*y+z*z);
+    }
+
+    void normalize(){
+        qreal l=length();
+        x/=l;y/=l;z/=l;
+    }
+};
+
+
+class Triangle{
+public:
+    Point3 points[3];
+
+    QRgb getNormalMapColor(){
+        Point3 U = points[1] - points[0];
+        Point3 V = points[2] - points[0];
+        Point3 N;
+        N.x = U.y*V.z - U.z*V.y;
+        N.y = U.z*V.x - U.x*V.z;
+        N.z = U.x*V.z - U.y*V.x;
+        N.normalize();
+        qreal r = qFloor(N.x*128)+128;
+        qreal g = qFloor(N.y*128)+128;
+        qreal b = qFloor(qAbs(N.z)*256);
+        return qRgb(r,g,b);
+    }
+    QPolygonF getPoly(){
+        QPolygonF poly;
+        for(int i=0;i<3;++i)
+            poly.push_back(points[i].toPoint2D());
+        return poly;
+    }
+    void setPoint(const uint index,QPointF pt,qreal height){
+        points[index].x = pt.x();
+        points[index].y = pt.y();
+        points[index].z = height;
+    }
+    void setPoint(const uint index, const Point3 &pt){
+        points[index] = pt;
+    }
+};
+
 class Edge;
 class Node {
 public:
@@ -75,9 +139,27 @@ public:
 
 class Rock{
     public:
-    QPolygonF poly;
-    void addPoint(Node *&n){
-        poly.push_back(n->pf);
+    typedef struct {
+       Node* node;
+       int nextDir;
+    } RNode;
+    QList<RNode> nodes;
+    int size;
+    Rock(){
+        size=0;
+    }
+
+    void addPoint(Node *&n,int nd){
+        size++;
+        RNode rn = {n,nd};
+        nodes.push_back(rn);
+    }
+    QPolygonF poly(){
+        QPolygonF p;
+        for(auto it=nodes.begin();it!=nodes.end();it++){
+            p.push_back((*it).node->pf);
+        }
+        return p;
     }
 };
 
@@ -92,32 +174,44 @@ public:
     RenderWidget(QWidget *parent);
     void regenRock();
     void genBaseRock();
+
     void genAllStep();
     void displacement();
     void subdivision();
-    void determineStoneArea();
+    bool determineStoneArea();
+    void gen3DStructure();
+    qreal structure_height;
+    qreal structure_inner_ratio;
 
-    int getDisplaceAmount(int limitDis);
+    void genBaseRockByPixel();
+    void drawPixelRect(int x,int y,int w,int h);
+    bool pixels[512][512];
+
+    qreal getDisplaceAmount(qreal limitDis);
 private:
     int LW,LH,RW,RWHalf,RH,RHHalf,WI,HI;
     int width,height;
 
-    int displacementBase;
-    int displacementLimit;
+    qreal displacementBase;
+    qreal displacementLimit;
 
     bool useFloatPoints;
     QVector<Edge*> edges;
     QVector<Node*> nodes;
     QVector<Rock*> rocks;
 
+    QVector<Triangle> triangles;
+
     Node* gg;
 
     QVector<QPointF> debugPtVector;
+    QVector<Node*> debugNodeVector;
+
 
     int rand_seed;
 
     void debugPt(QPointF p);
-
+    void debugPt(Node*n);
     void debugPt(QPainter &painter,QPointF p, QColor color=Qt::red);
     void drawResult(QPainter &painter);
     void clearVector();

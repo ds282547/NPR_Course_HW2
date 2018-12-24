@@ -27,11 +27,13 @@ RenderWidget::RenderWidget(QWidget *parent):QWidget(parent)
     RHHalf = RH/2;
     width = 512;
     height = 512;
-    rand_seed = 401;
+    rand_seed = 921;//291; //348 //985 //755 // 65//92
 
-    displacementBase = 2;
-    displacementLimit = 5; //too small rock don't do displacement
+    displacementBase = 1;
+    displacementLimit = 3; //too small rock don't do displacement
 
+    structure_height = 30;
+    structure_inner_ratio = 0.5;
     genAllStep();
 }
 
@@ -43,6 +45,7 @@ void RenderWidget::regenRock()
 
 void RenderWidget::genBaseRock()
 {
+    qDebug() << rand_seed;
     qsrand(rand_seed);
 
 
@@ -154,31 +157,64 @@ void RenderWidget::genBaseRock()
 
     j=1;
     do {
-        bool cond = (i==8) && (j == 7);
-        //qDebug() << i << j;
-        if(i==8 && j == 8){
-            return;
+        bool rightTopOverlapping = false; //特殊case右上交疊
+        bool LB_HigherThan_last_RT = false; // 整塊比上一塊高 最後產生左方邊的時候要考慮
+        Node* rightTopOverlapping_RT;
+        bool cond2 = (i==12) && (j == 6);
+        bool cond = (i==10) && (j == 9);
+        if(i==10&&j==10){
+            //return;
         }
+        //qDebug() << i << j;
         //qDebug() << "====";
         genCellSize(w,h);
 
-
-
+        /*
+        if(cond){
+            return;
+        }
+        */
 
         if(tx+w>width){
             w = width-tx;
-            notLastCell = false;
-        }
 
+        }
+        notLastCell = (tx+w)!=width;
+
+
+
+        /*if(*(cur_it+1)){
+            if((*(cur_it+1))->x() == (*cur_it)->x() && (*(cur_it+1))->y() < (*cur_it)->y()){
+                ty = (*(cur_it+1))->y();
+            }
+        }*/
+
+
+
+
+        bool special_seed_683 = false;
+        auto next_cur_it = cur_it+1;
+        if(next_cur_it!=skyline.end() && next_cur_it+1!=skyline.end()){
+            if((*next_cur_it)->y()<(*cur_it)->y() &&
+                    (*next_cur_it)->x()==tx){
+               cur_it = next_cur_it;
+               special_seed_683 = true;
+            }
+        }
         ty = (*cur_it)->y();
+
         while ((*cur_it)->x()<tx+w){
+
             ty = std::max(ty,(*cur_it)->y());
             cur_it++;
         }
 
-        if(last_RB && last_RB->upper && LB->p==last_RB->upper->p){
+
+
+        if(last_RB && last_RB->upper && QPoint(tx+0,ty+h)==last_RB->upper->p){
             //很小機率目前方塊左下與上塊方塊右上共點
-            LB=last_RB;
+
+            LB=last_RB->upper;
         } else {
             if(last_RB && last_RB->y()==ty+h)
                 LB = last_RB;
@@ -188,16 +224,66 @@ void RenderWidget::genBaseRock()
         RB = createNode(QPoint(tx+w,ty+h));
 
 
+
         if ((*cur_it)->x() == tx+w){
+            //考慮右上邊交疊狀況
             Node *top = *cur_it;
             if(cur_it+1 != skyline.end()){
-                top = *(cur_it+1);
-                if(top)
-            }
-            RT = *cur_it;
 
-        }else
+                top = *(cur_it+1);
+                if(top->y()<(*cur_it)->y()){
+                    top = *cur_it;
+                }
+            }
+
+
+
+
+            if(top->y() == ty){
+
+                //共點
+                RT = top;
+            } else if(top->y() > ty){
+                //右上覆蓋到上一列 (seed=401)
+
+                Node *top_adj = top->upper;
+
+                if(top_adj->p==QPoint(tx+w,ty)){
+                    RT = top_adj;
+                    rightTopOverlapping = true;
+                    rightTopOverlapping_RT=top;
+                } else {
+
+                    //split
+                    //qDebug() << "Sp";
+                    RT = createNode(QPoint(tx+w,ty));
+                    //qDebug()<<top->p;
+
+                    top_adj->lower = RT;
+
+                    top_adj->eb->n2=RT;
+                    RT->upper = top_adj;
+                    RT->et=top_adj->el;
+                    createEdge(RT,top,false);
+
+                    rightTopOverlapping = true;
+                    rightTopOverlapping_RT=top;
+                }
+            } else {
+                //右上離上列有距離 仍要產生新RT
+
+                RT = createNode(QPoint(tx+w,ty));
+
+            }
+
+        }else{
             RT = createNode(QPoint(tx+w,ty));
+
+        }
+
+        if((*cur_it) && RT->x()==(*cur_it)->x() && RT->y()>(*cur_it)->y() && (*cur_it)->lower!=RT && notLastCell){
+            createEdge(*cur_it,RT,false);
+        }
 
         if(firstCell){
             firstCell=false;
@@ -207,18 +293,27 @@ void RenderWidget::genBaseRock()
 
         createEdge(LB,RB,true); // Left to right
 
-        createEdge(RT,RB,false,notLastCell); // Top to bottom
+        if(rightTopOverlapping)
+            createEdge(rightTopOverlapping_RT,RB,false,notLastCell);
+        else
+            createEdge(RT,RB,false,notLastCell); // Top to bottom
+
 
 
 
         if(last_RB){
 
             if(last_RB->upper && last_RB->upper->y() >= LB->y()){
+
                 if (last_RB->upper->y()!=LB->y()){
+
                     createEdge(LB,last_RB->upper,false);
                 }
+                LB_HigherThan_last_RT = true;
             }else{
+
                 if(last_RB->y() > LB->y()){
+
                     //split
                     Node *temp = last_RB->upper;
 
@@ -234,15 +329,21 @@ void RenderWidget::genBaseRock()
 
 
 
-
-
                 } else if (last_RB->y() < LB->y()){
 
                     createEdge(last_RB,LB,false);
+
+
                 }
+
             }
 
         }
+
+
+
+
+
 
 
         Node *bcktr = RT;
@@ -251,6 +352,7 @@ void RenderWidget::genBaseRock()
         bool isRightPt; // for top-edge
 
         bcktr_it = cur_it;
+
 
 
 
@@ -267,7 +369,7 @@ void RenderWidget::genBaseRock()
             createEdge(RT,*cur_it,true);
             cur_it = skyline.insert(bcktr_it+1,RT);
 
-
+            edgeRightPt = (*bcktr_it);
 
             isRightPt = false;
         } else {
@@ -279,6 +381,7 @@ void RenderWidget::genBaseRock()
             isRightPt = true;
             edgeRightPt = RT;
         }
+
 
 
 
@@ -320,17 +423,27 @@ void RenderWidget::genBaseRock()
 
         }
 
+
+        // 處理方形左方邊
+
         // 左上角的上層是密合邊
 
 
+
         if ((*bcktr_it)->y()==ty){
+
             if (last_RT->y() > ty){
 
-                //同一點(機率小)
+                bool con_pt=false;
+
                 if ((*bcktr_it)->x()==tx){
+                    //同一點(機率小)
+                    con_pt = true;
                     LT = (*bcktr_it);
+
                 }else{
                     //split
+
                     LT = createNode(QPoint(tx,ty));
                     Node* temp_node = (*bcktr_it)->right;
                     (*bcktr_it)->right = LT;
@@ -342,8 +455,25 @@ void RenderWidget::genBaseRock()
                     createEdge(LT,temp_node,true);
                 }
 
-                // 垂直分割
-                createEdge(LT,last_RT,false);
+                // 垂直分割 考慮特殊狀況
+
+
+
+                if(LB_HigherThan_last_RT){
+                    createEdge(LT,LB,false);
+
+                } else {
+                    if(special_seed_683 && con_pt && LT->lower && LT->lower->p != last_RT->p){
+                        debugPt(LT->lower->p);
+                        debugPt(last_RT->p);
+                        createEdge(LT->lower,last_RT,false);
+                        qDebug()<<"683";
+
+                    } else {
+                        createEdge(LT,last_RT,false);
+                    }
+                }
+
 
 
 
@@ -365,28 +495,94 @@ void RenderWidget::genBaseRock()
 
             //debugPt(painter,last_RT->p);
             bool vacant_case = true;
-            if (last_RT->y() > ty){
-                LT = createNode(QPoint(tx,ty));
+            bool spciel_383 = false;
 
-                createEdge(LT,last_RT,false);
+
+            if (last_RB && last_RB->y() <= ty){
+                //特殊狀況 LT比上個的RB還下面 (含等號) seed:383 下面
+                LT = last_RB;
+                spciel_383 = true;
+
+            } else if (last_RT->y() > ty){
+
+                if((*bcktr_it)->x()==tx && (*bcktr_it)->y()<ty){
+                    if((*bcktr_it)->lower==last_RT){
+                        //bcktr到last_RT本來就有邊
+                        //split
+                        LT = createNode(QPoint(tx,ty));
+                        (*bcktr_it)->lower=LT;
+                        (*bcktr_it)->eb->n2=LT;
+                        LT->upper = (*bcktr_it);
+                        LT->et = (*bcktr_it)->eb;
+                        createEdge(LT,last_RT,false);
+                    } else {
+                        //可能沒邊 bcktr有下邊 LT夾在中間
+
+                        if((*bcktr_it)->lower && (*bcktr_it)->lower->y()>ty){
+                            //split case - 985 (7,4)
+                            Node *temp = (*bcktr_it)->lower;
+                            LT = createNode(QPoint(tx,ty));
+                            (*bcktr_it)->lower=LT;
+                            (*bcktr_it)->eb->n2=LT;
+                            LT->upper = (*bcktr_it);
+                            LT->et = (*bcktr_it)->eb;
+                            createEdge(LT,temp,false);
+                            createEdge(temp,last_RT,false);
+
+
+                        } else {
+
+                            qDebug()<<"Unknown";
+                            LT = createNode(QPoint(tx,ty));
+                            createEdge((*bcktr_it),LT,false);
+                            createEdge(LT,last_RT,false);
+                            (*bcktr_it)->p+=QPoint(5,5);
+                            last_RT->p+=QPoint(5,5);
+
+
+                        }
+                    }
+                } else{
+
+                    LT = createNode(QPoint(tx,ty));
+                    createEdge(LT,last_RT,false);
+                }
+
 
             } else if (last_RT->y() == ty){
+
                 LT = last_RT;
                 vacant_case = false;
             } else {
                 //split
+                // |
+                // .----
+                // |
+
+
                 LT = createNode(QPoint(tx,ty));
-
-                if (last_RT->lower && last_RT->lower->p != LT->p) {
-
-                    createEdge(LT , last_RT->lower,false);
-                    last_RT->lower = LT;
-                    last_RT->eb->n2 = LT;
-                    LT->upper = last_RT;
-                    LT->et = last_RT->eb;
+                Node *lowest = last_RT;
+                while(lowest->lower && lowest->p.y()<LT->y()){
+                    lowest=lowest->lower;
                 }
+
+
+
+                if (lowest && lowest->p != LT->p) {
+                    Node * lowest_uppder = lowest->upper;
+                    lowest_uppder->lower = LT;
+                    lowest_uppder->eb->n2 = LT;
+                    LT->upper = lowest_uppder;
+                    LT->et = lowest_uppder->eb;
+
+
+                    createEdge(LT , lowest,false);
+
+                }
+
                 vacant_case = false;
             }
+
 
             createEdge(LT,edgeRightPt,true);
 
@@ -394,8 +590,10 @@ void RenderWidget::genBaseRock()
 
 
 
+
+
             //vacant space case 2-1
-            if (last_RT->y() > (*bcktr_it)->y() && (*bcktr_it)->y() == (*(bcktr_it+1))->y() && (*bcktr_it)->x() < last_RT->x()){
+            if (last_RT->y() > (*bcktr_it)->y() && (*bcktr_it)->y() == (*(bcktr_it+1))->y() && (*bcktr_it)->x() < last_RT->x() && !spciel_383){
                 Node* vc_center;
                 if (vacant_case){
                     vc_center = createNode(QPoint(LT->x(),(*bcktr_it)->y()));
@@ -416,7 +614,18 @@ void RenderWidget::genBaseRock()
             }
 
 
+
+
         }
+
+        // 底部同x連線
+
+
+        if((*cur_it) && (*cur_it)->x() == RT->x() && (*cur_it)->y() < RT->y() && ((*cur_it)->lower!=RT) && !notLastCell){
+
+            createEdge((*cur_it),RT,false);
+        }
+
 
         last_RT = RT;
         last_RB = RB;
@@ -424,6 +633,11 @@ void RenderWidget::genBaseRock()
         cur_skyline.push_back(LB);cur_skyline.push_back(RB);
 
         j++;
+
+        if(cond){
+        }
+        if( cond2){
+        }
     } while(tx<width);
 
 
@@ -436,6 +650,7 @@ void RenderWidget::genBaseRock()
             lastRow = lastRow && ( (*skyit)->y() >= height );
         }
 
+
         i++;
     } while (!lastRow);
 
@@ -444,12 +659,21 @@ void RenderWidget::genBaseRock()
 
 void RenderWidget::genAllStep()
 {
+    //genBaseRockByPixel();
+
     useFloatPoints = false;
     genBaseRock();
-    //displacement();
+    while(!determineStoneArea()){
+        rand_seed = QTime::currentTime().msec();
+        genBaseRock();
+    }
+
+
     convertToFloatPoints();
-    //subdivision();
-    //determineStoneArea();
+    displacement();
+    subdivision();
+    gen3DStructure();
+
 
 
 
@@ -457,31 +681,32 @@ void RenderWidget::genAllStep()
 
 void RenderWidget::displacement()
 {
+    std::default_random_engine g( time(NULL) );
+    std::uniform_real_distribution<float> u(0.0, 1.0);
 
     for(auto it=nodes.begin();it!=nodes.end();it++){
         Node* node = *it;
         if(node->x()==0 || node->x()==height || node->y()==0 || node->y()==width)
             continue;
         unsigned order = (node->er != NULL) + (node->el != NULL) + (node->et != NULL) + (node->eb != NULL);
-        int dx=0,dy=0;
+        QPointF dir;
         if(order==3){
             if(!node->er){
-                // displace left
-                dx = -getDisplaceAmount(node->x() - node->left->x());
+                dir = node->el->n1->pf - node->pf;
+
             } else if(!node->el){
                 // displace right
-                dx=getDisplaceAmount(node->right->x() - node->x());
+                dir = node->er->n2->pf - node->pf;
+
             } else if(!node->et){
                 // displace lower
+                dir = node->el->n2->pf - node->pf;
 
-                dy=getDisplaceAmount(node->lower->y() - node->y());
             } else if(!node->eb){
-                // displace upper
-
-                dy=-getDisplaceAmount(node->y() - node->upper->y());
-
+                dir = node->et->n1->pf - node->pf;
             }
-            node->p+=QPoint(dx,dy);
+            dir*=u(g)*0.3;
+            node->pf+=dir;
         }
     }
 }
@@ -541,50 +766,55 @@ void RenderWidget::subdivision()
     }
 }
 
-void RenderWidget::determineStoneArea()
+bool RenderWidget::determineStoneArea()
 {
     // U R D L
     // 0 1 2 3
     int candidates[4]={1,2,3,0}; // R D L U
     int choosen_dir;
     int count = 0;
+
+
+
     bool db = false;
     for(auto it=nodes.begin();it!=nodes.end();it++){
 
         Node* node = *it;
 
-        db = (node->x()==348 &&node->y()==316);
-        if(db){
-            qDebug()<<node->lower;
-        }
-        if(!db){
-           //continue;
-        }
+
 
         Node* step;
         for(int i=0;i<4;++i){
             step = node;
+
             if(step->dir(i) && !step->dir_visited[i]){
+                int pt_count = 0;
 
                 Rock* rock = new Rock();
                 choosen_dir = i;
-                rock->addPoint(step);
+                rock->addPoint(step,i);
                 step->dir_visited[choosen_dir] = true;
                 step = step->dir(i);
 
                 bool found = true;
 
 
-                while(step!=node){
-                    rock->addPoint(step);
+                while(step!=node && pt_count<50){
+
+                     pt_count++;
+
                     if(step->dir( candidates[choosen_dir] )){
                         // 1st Candidate
                         choosen_dir = candidates[choosen_dir];
 
-                       step->dir_visited[choosen_dir] = true;
-                       step = step->dir(choosen_dir);
+                        rock->addPoint(step,choosen_dir);
+
+                        step->dir_visited[choosen_dir] = true;
+                        step = step->dir(choosen_dir);
                     } else if(step->dir( choosen_dir )){
                         // 2nd Candidate
+
+                        rock->addPoint(step,choosen_dir);
 
                         step->dir_visited[choosen_dir] = true;
                         step = step->dir(choosen_dir);
@@ -593,6 +823,16 @@ void RenderWidget::determineStoneArea()
                         found = false;
                         break;
                     }
+                }
+                if(pt_count>15 && found){
+                    qDebug()<<pt_count<<rock->size<<"Not OK" <<node->p;
+                    //clear vector
+                    delete rock;
+                    for(auto r=rocks.begin();r!=rocks.end();++r){
+                        delete *r;
+                    }
+                    rocks.clear();
+                    return false;
                 }
                if(found){
                    rocks.push_back(rock);
@@ -603,9 +843,158 @@ void RenderWidget::determineStoneArea()
         }
 
     }
+    return true;
 }
 
-int RenderWidget::getDisplaceAmount(int limitDis)
+void RenderWidget::gen3DStructure()
+{
+    for(auto it=rocks.begin();it!=rocks.end();++it){
+        Rock* rock = *it;
+        QString m;
+        Rock::RNode rn,rn_next;
+
+        QPointF corner[5];
+        QList<QPointF> edge[4];
+
+        //reconstruction
+        while(rock->nodes.back().nextDir != 3 || rock->nodes.first().nextDir != 0){
+            Rock::RNode rn = rock->nodes.first();
+            rock->nodes.pop_front();
+            rock->nodes.push_back(rn);
+        }
+
+
+        for(auto n=rock->nodes.begin();(n+1)!=rock->nodes.end();++n){
+            rn=*n;
+            rn_next=*(n+1);
+            if(rn.nextDir!=rn_next.nextDir){
+                corner[rn.nextDir]=rn_next.node->pf;
+            } else {
+                edge[(rn.nextDir+3)%4].push_back(rn_next.node->pf);
+            }
+            m.append(QString::number(rn.nextDir));
+        }
+        // circularly comparsion -> with first
+        rn=rn_next;rn_next=*(rock->nodes.begin());
+        if(rn.nextDir!=rn_next.nextDir){
+
+            corner[rn.nextDir]=rn_next.node->pf;
+        } else {
+            //reverse push
+            edge[(rn.nextDir+3)%4].push_back(rn_next.node->pf);
+        }
+        // be circular
+        corner[4]=corner[0];
+
+        //generation
+        QPointF centerPt=corner[0]+corner[1]+corner[2]+corner[3];
+        centerPt/=4;
+        Point3 centerPt3(centerPt,structure_height);
+
+        //upper pyramid
+        QPointF pyramid_corner[5];
+        qreal middle_height = (1-structure_inner_ratio)*structure_height ;
+
+        for(int i=0;i<5;++i){
+            pyramid_corner[i] = corner[i]*(1-structure_inner_ratio)+centerPt*structure_inner_ratio;
+        }
+
+        for(int i=0;i<4;++i){
+            Triangle tri;
+            tri.setPoint(0,pyramid_corner[i+1],middle_height);
+            tri.setPoint(1,pyramid_corner[i], middle_height);
+            tri.setPoint(2,centerPt3);
+            triangles.push_back(tri);
+        }
+        //outside mesh
+        // .__.__.
+        // \./_\./
+        for(int i=0;i<4;++i){
+            QList<QPointF> innerEdge;
+            int innerDivision;
+            if(edge[i].isEmpty()){
+                edge[i].push_back((corner[i]+corner[i+1])/2);
+            }
+
+            innerDivision = edge[i].size();
+
+
+            edge[i].push_front(corner[i]);
+            edge[i].push_back(corner[i+1]);
+
+
+            for(int j=0;j<=innerDivision;++j){
+                qreal t=qreal(j)/innerDivision;
+                innerEdge.push_back(pyramid_corner[i]*(1-t) + pyramid_corner[i+1]*t);
+            }
+
+
+
+
+            // Inverted triangle
+            for(auto m=edge[i].begin(),n=innerEdge.begin();(m+1)!=edge[i].end();++m,++n){
+                Triangle tri;
+                tri.setPoint(0,*(m+1),0);
+                tri.setPoint(1,*m,0);
+                tri.setPoint(2,*n,middle_height);
+               triangles.push_back(tri);
+            }
+            // triangle
+            for(auto m=edge[i].begin()+1,n=innerEdge.begin();(n+1)!=innerEdge.end();++m,++n){
+                Triangle tri;
+                tri.setPoint(1,*n,0);
+                tri.setPoint(0,*(n+1),0);
+                tri.setPoint(2,*m,middle_height);
+                triangles.push_back(tri);
+            }
+
+
+        }
+
+
+    }
+
+}
+
+void RenderWidget::genBaseRockByPixel()
+{
+    memset(pixels,0,sizeof(pixels[0][0])*512*512);
+
+    //Row1
+    int w,h;
+    int ok_x=0;
+    bool notLastCell;
+    do{
+
+        genCellSize(w,h);
+        notLastCell = true;
+        if(ok_x+w>=width-1){
+            w=width-1-ok_x;
+            notLastCell = false;
+        }
+
+
+        qDebug()<<ok_x+w;
+        drawPixelRect(ok_x,0,w,h);
+        ok_x+=w;
+
+
+    }while(notLastCell);
+}
+
+void RenderWidget::drawPixelRect(int x, int y, int w, int h)
+{
+    for(int i=x;i<=x+w;++i){
+        pixels[i][y]=1;
+        pixels[i][y+h]=1;
+    }
+    for(int i=y;i<=y+h;++i){
+        pixels[x][i]=1;
+        pixels[x+w][i]=1;
+    }
+}
+
+qreal RenderWidget::getDisplaceAmount(qreal limitDis)
 {
 
     if(limitDis<=displacementLimit){
@@ -614,8 +1003,9 @@ int RenderWidget::getDisplaceAmount(int limitDis)
         limitDis/=3;
         limitDis-=displacementBase;
 
+
         if(limitDis>0)
-            return (rand() % limitDis) + displacementBase;
+            return 3;//(rand() % limitDis) + displacementBase;
         else
             return 0;
     }
@@ -626,6 +1016,11 @@ void RenderWidget::debugPt(QPointF p)
     debugPtVector.push_back(p);
 }
 
+void RenderWidget::debugPt(Node *n)
+{
+    debugNodeVector.push_back(n);
+}
+
 void RenderWidget::debugPt(QPainter &painter, QPointF p, QColor color)
 {
     painter.setBrush(color);
@@ -634,13 +1029,50 @@ void RenderWidget::debugPt(QPainter &painter, QPointF p, QColor color)
 
 void RenderWidget::drawResult(QPainter &painter)
 {
+    /*
+    QImage image(width,height,QImage::Format_RGB32);
+    uint empty = qRgb(255,255,255);
+    uint board = qRgb(0,0,0);
+    for(int i=0;i<width;++i){
+        for(int j=0;j<height;++j){
+            image.setPixel(i,j,pixels[i][j]?board:empty);
+        }
+    }
+    painter.drawImage(0,0,image);
+    */
+
     //painter.setRenderHint(QPainter::Antialiasing, true);
     if(!useFloatPoints){
         convertToFloatPoints();
     }
 
+
+    /*
+    for(auto it=debugPtVector.begin();it!=debugPtVector.end();it++){
+        debugPt(painter,*it);
+    }
+    for(auto it=debugNodeVector.begin();it!=debugNodeVector.end();it++){
+        debugPt(painter,(*it)->p);
+    }*/
+    QBrush b(QColor(255,0,0,50));
+    painter.setBrush(b);
+    painter.setPen(Qt::NoPen);
+
+    for(QVector<Triangle>::iterator it=triangles.begin();it!=triangles.end();it++){
+        painter.setBrush(QBrush(QColor(it->getNormalMapColor())));
+        painter.drawPolygon((*it).getPoly());
+    }
+    /*
+    for(auto it=rocks.begin();it!=rocks.end();it++){
+        painter.drawPolygon((*it)->poly());
+    }
+    */
+    QPen pen(Qt::black);
+    pen.setWidth(5);
+    painter.setPen(pen);
+
     for(auto it=edges.begin();it!=edges.end();it++){
-        painter.setPen(QColor(rand()%200,rand()%200,rand()%200));
+
         Edge* ed = *it;
         QPainterPath path;
 
@@ -652,19 +1084,6 @@ void RenderWidget::drawResult(QPainter &painter)
         }
         path.lineTo(ed->n2->pf);
         painter.drawPath(path);
-        //if(ed->n2->p==QPoint(0,0)){
-            //qDebug() << ed->n1;
-        //}
-    }
-
-    for(auto it=debugPtVector.begin();it!=debugPtVector.end();it++){
-        debugPt(painter,*it);
-    }
-    QBrush b(QColor(255,0,0,50));
-    painter.setBrush(b);
-    for(auto it=rocks.begin();it!=rocks.end();it++){
-
-        painter.drawPolygon((*it)->poly);
     }
 }
 
@@ -679,10 +1098,16 @@ void RenderWidget::clearVector()
         delete (*it);
     }
     nodes.clear();
+    for(QVector<Node*>::iterator it=debugNodeVector.begin();it!=debugNodeVector.end();it++){
+        delete (*it);
+    }
+    debugNodeVector.clear();
     for(QVector<Rock*>::iterator it=rocks.begin();it!=rocks.end();it++){
         delete (*it);
     }
     rocks.clear();
+
+    triangles.clear();
 
     //clear debug pt list
     QVector<QPointF> empty;
