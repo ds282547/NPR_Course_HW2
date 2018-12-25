@@ -561,13 +561,13 @@ void GLWidget::processModelData()
         tangent.setX(f*(deltaUV2.y()*edge1.x() - deltaUV1.y()*edge2.x()));
         tangent.setY(f*(deltaUV2.y()*edge1.y() - deltaUV1.y()*edge2.y()));
         tangent.setZ(f*(deltaUV2.y()*edge1.z() - deltaUV1.y()*edge2.z()));
-        tangent.normalize();
+
 
         bitangent.setX(f*(-deltaUV2.x()*edge1.x() + deltaUV1.x()*edge2.x()));
         bitangent.setY(f*(-deltaUV2.x()*edge1.y() + deltaUV1.x()*edge2.y()));
         bitangent.setZ(f*(-deltaUV2.x()*edge1.z() + deltaUV1.x()*edge2.z()));
 
-        bitangent.normalize();
+
         for (unsigned j = 0; j < 3; ++j) {
             vertices[indx-j].tanx =  tangent.x();
             vertices[indx-j].tany =  tangent.y();
