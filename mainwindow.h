@@ -30,6 +30,8 @@ private slots:
 
     void on_pushButtonLoadObj_released();
 
+    void on_pushButtonGenWSeed_released();
+
 private:
     Ui::MainWindow *ui;
     QButtonGroup *stepsRatios;

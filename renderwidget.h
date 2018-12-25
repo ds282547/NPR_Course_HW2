@@ -184,6 +184,7 @@ public:
     qreal structure_height;
     qreal structure_inner_ratio;
 
+    int rand_seed;
     int getRandSeed();
     void genBaseRockByPixel();
     void drawPixelRect(int x,int y,int w,int h);
@@ -215,7 +216,7 @@ private:
     QVector<Node*> debugNodeVector;
 
 
-    int rand_seed;
+
 
     void debugPt(QPointF p);
     void debugPt(Node*n);

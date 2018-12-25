@@ -61,7 +61,16 @@ void MainWindow::switchStep(int step)
 
 void MainWindow::on_pushButtonGen_released()
 {
+    bool work;
+    uint seed =  ui->plainTextEditSeed->toPlainText().toUInt(&work);
+    if(!work){
+        ui->plainTextEditSeed->document()->setPlainText( QString::number(ui->widget->getRandSeed()) );
+        QMessageBox::warning(this,"Warning!","Seed Not a number!");
+        return;
+    }
+    ui->widget->rand_seed = seed;
     ui->widget->genAllStep();
+
     ui->groupBox->setEnabled(true);
 
 }
@@ -73,6 +82,19 @@ void MainWindow::on_pushButtonLoadObj_released()
     if (fileName.isEmpty())
             return;
     else {
+        QString temp = ui->pushButtonLoadObj->text();
+        ui->pushButtonLoadObj->setEnabled(false);
+        ui->pushButtonLoadObj->setText("Loading...");
         ui->glwidget->load3DModel(fileName);
+        ui->pushButtonLoadObj->setEnabled(true);
+        ui->pushButtonLoadObj->setText(temp);
+
     }
+}
+
+void MainWindow::on_pushButtonGenWSeed_released()
+{
+    int seed = ui->widget->regenRock();
+    ui->plainTextEditSeed->document()->setPlainText( QString::number(seed) );
+    ui->groupBox->setEnabled(true);
 }
