@@ -24,6 +24,7 @@ void main()
 
     // get diffuse color
     vec3 color = texture(diffuseMap, fs_in.TexCoords).rgb;
+
     // ambient
     vec3 ambient = 0.1 * color;
     // diffuse
