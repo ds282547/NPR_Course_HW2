@@ -4,11 +4,9 @@ void RenderWidget::paintEvent(QPaintEvent *e)
 {
 
     QPainter painter(this);
-    painter.setPen(Qt::NoPen);
-    painter.setBrush(Qt::white);
-    painter.drawRect(0,0,512,512);
-    painter.setBrush(Qt::NoBrush);
-    drawResult(painter);
+    if(current_step>=0){
+        painter.drawImage(0,0,*(step_images.at(current_step)));
+    }
 
 
 }
@@ -32,15 +30,29 @@ RenderWidget::RenderWidget(QWidget *parent):QWidget(parent)
     displacementBase = 1;
     displacementLimit = 3; //too small rock don't do displacement
 
-    structure_height = 30;
+    structure_height = 10;
     structure_inner_ratio = 0.5;
-    genAllStep();
+
+    for(int i=0;i<TOTAL_STEP;++i){
+        QImage *image = new QImage(width,height,QImage::Format_RGB32);
+        step_images.push_back(image);
+    }
+
+    current_step = -1;
 }
 
-void RenderWidget::regenRock()
+RenderWidget::~RenderWidget()
+{
+    for(auto n=step_images.begin();n!=step_images.end();++n){
+        delete (*n);
+    }
+}
+
+int RenderWidget::regenRock()
 {
     rand_seed = QTime::currentTime().msec();
     genAllStep();
+    return rand_seed;
 }
 
 void RenderWidget::genBaseRock()
@@ -668,11 +680,24 @@ void RenderWidget::genAllStep()
         genBaseRock();
     }
 
+    //draw step 0 result
+    drawResult(0);
 
     convertToFloatPoints();
     displacement();
+
+    drawResult(1);
+
     subdivision();
+
+    drawResult(2);
+
     gen3DStructure();
+
+    drawResult(3);
+    drawResult(4);
+
+
 
 
 
@@ -889,11 +914,16 @@ void RenderWidget::gen3DStructure()
         //generation
         QPointF centerPt=corner[0]+corner[1]+corner[2]+corner[3];
         centerPt/=4;
-        Point3 centerPt3(centerPt,structure_height);
+
+        qreal adj_ratio = (qAbs(corner[0].x()-corner[1].x())*qAbs((corner[1].y()-corner[2].y())))/2000;
+
+        Point3 centerPt3(centerPt,structure_height*adj_ratio);
+
+
 
         //upper pyramid
         QPointF pyramid_corner[5];
-        qreal middle_height = (1-structure_inner_ratio)*structure_height ;
+        qreal middle_height = (1-structure_inner_ratio)*structure_height*adj_ratio ;
 
         for(int i=0;i<5;++i){
             pyramid_corner[i] = corner[i]*(1-structure_inner_ratio)+centerPt*structure_inner_ratio;
@@ -929,8 +959,6 @@ void RenderWidget::gen3DStructure()
             }
 
 
-
-
             // Inverted triangle
             for(auto m=edge[i].begin(),n=innerEdge.begin();(m+1)!=edge[i].end();++m,++n){
                 Triangle tri;
@@ -942,9 +970,12 @@ void RenderWidget::gen3DStructure()
             // triangle
             for(auto m=edge[i].begin()+1,n=innerEdge.begin();(n+1)!=innerEdge.end();++m,++n){
                 Triangle tri;
-                tri.setPoint(1,*n,0);
-                tri.setPoint(0,*(n+1),0);
-                tri.setPoint(2,*m,middle_height);
+                tri.setPoint(0,*m,0);
+                tri.setPoint(1,*n,middle_height);
+                tri.setPoint(2,*(n+1),middle_height);
+
+
+
                 triangles.push_back(tri);
             }
 
@@ -955,6 +986,13 @@ void RenderWidget::gen3DStructure()
     }
 
 }
+
+int RenderWidget::getRandSeed()
+{
+    return rand_seed;
+}
+
+
 
 void RenderWidget::genBaseRockByPixel()
 {
@@ -1011,6 +1049,12 @@ qreal RenderWidget::getDisplaceAmount(qreal limitDis)
     }
 }
 
+void RenderWidget::showStep(int step)
+{
+    current_step = step;
+    update();
+}
+
 void RenderWidget::debugPt(QPointF p)
 {
     debugPtVector.push_back(p);
@@ -1027,24 +1071,127 @@ void RenderWidget::debugPt(QPainter &painter, QPointF p, QColor color)
     painter.drawEllipse(p,2,2);
 }
 
-void RenderWidget::drawResult(QPainter &painter)
+void RenderWidget::drawResult(int step)
 {
-    /*
-    QImage image(width,height,QImage::Format_RGB32);
-    uint empty = qRgb(255,255,255);
-    uint board = qRgb(0,0,0);
-    for(int i=0;i<width;++i){
-        for(int j=0;j<height;++j){
-            image.setPixel(i,j,pixels[i][j]?board:empty);
-        }
-    }
-    painter.drawImage(0,0,image);
-    */
+    QPainter painter(step_images.at(step));
 
-    //painter.setRenderHint(QPainter::Antialiasing, true);
-    if(!useFloatPoints){
-        convertToFloatPoints();
+
+    painter.setPen(Qt::NoPen);
+    painter.setBrush(Qt::white);
+    painter.drawRect(0,0,511,511);
+    QBrush b(QColor(255,0,0,50));
+    static QPen pen(QColor(128,128,255));
+    switch(step){
+    case 0:
+
+        painter.setBrush(Qt::NoBrush);
+        painter.setPen(Qt::black);
+
+        for(auto it=edges.begin();it!=edges.end();it++){
+
+            Edge* ed = *it;
+            QPainterPath path;
+
+            path.moveTo(ed->n1->p);
+            path.lineTo(ed->n2->p);
+            painter.drawPath(path);
+        }
+        qDebug() << "COOL!";
+        break;
+    case 1:
+        painter.setBrush(Qt::NoBrush);
+        painter.setPen(Qt::black);
+
+        for(auto it=edges.begin();it!=edges.end();it++){
+
+            Edge* ed = *it;
+            QPainterPath path;
+
+            path.moveTo(ed->n1->pf);
+            path.lineTo(ed->n2->pf);
+            painter.drawPath(path);
+        }
+        break;
+    case 2:
+        painter.setBrush(Qt::NoBrush);
+        painter.setPen(Qt::black);
+
+        for(auto it=edges.begin();it!=edges.end();it++){
+
+            Edge* ed = *it;
+            QPainterPath path;
+
+            path.moveTo(ed->n1->pf);
+            if(!ed->line.isEmpty()){
+                for(auto m=ed->line.begin();m!=ed->line.end();m++){
+                    path.lineTo(*m);
+                }
+            }
+            path.lineTo(ed->n2->pf);
+            painter.drawPath(path);
+        }
+        break;
+    case 3: // Normal Map
+
+        painter.setBrush(b);
+        painter.setPen(Qt::NoPen);
+
+        for(QVector<Triangle>::iterator it=triangles.begin();it!=triangles.end();it++){
+            painter.setBrush(QBrush(QColor(it->getNormalMapColor())));
+            painter.drawPolygon((*it).getPoly());
+        }
+        /*
+        for(auto it=rocks.begin();it!=rocks.end();it++){
+            painter.drawPolygon((*it)->poly());
+        }
+        */
+
+        pen.setWidth(5);
+        painter.setPen(pen);
+
+        for(auto it=edges.begin();it!=edges.end();it++){
+
+            Edge* ed = *it;
+            QPainterPath path;
+
+            path.moveTo(ed->n1->pf);
+            if(!ed->line.isEmpty()){
+                for(auto m=ed->line.begin();m!=ed->line.end();m++){
+                    path.lineTo(*m);
+                }
+            }
+            path.lineTo(ed->n2->pf);
+            painter.drawPath(path);
+        }
+        break;
+    case 4:
+
+        painter.setBrush(Qt::gray);
+        painter.drawRect(0,0,511,511);
+
+        //pen.setColor(QColor(120,120,120));
+        pen.setWidth(5);
+        painter.setPen(pen);
+        return;
+
+        for(auto it=edges.begin();it!=edges.end();it++){
+
+            Edge* ed = *it;
+            QPainterPath path;
+
+            path.moveTo(ed->n1->pf);
+            if(!ed->line.isEmpty()){
+                for(auto m=ed->line.begin();m!=ed->line.end();m++){
+                    path.lineTo(*m);
+                }
+            }
+            path.lineTo(ed->n2->pf);
+            painter.drawPath(path);
+        }
+        break;
+
     }
+
 
 
     /*
@@ -1054,37 +1201,7 @@ void RenderWidget::drawResult(QPainter &painter)
     for(auto it=debugNodeVector.begin();it!=debugNodeVector.end();it++){
         debugPt(painter,(*it)->p);
     }*/
-    QBrush b(QColor(255,0,0,50));
-    painter.setBrush(b);
-    painter.setPen(Qt::NoPen);
 
-    for(QVector<Triangle>::iterator it=triangles.begin();it!=triangles.end();it++){
-        painter.setBrush(QBrush(QColor(it->getNormalMapColor())));
-        painter.drawPolygon((*it).getPoly());
-    }
-    /*
-    for(auto it=rocks.begin();it!=rocks.end();it++){
-        painter.drawPolygon((*it)->poly());
-    }
-    */
-    QPen pen(Qt::black);
-    pen.setWidth(5);
-    painter.setPen(pen);
-
-    for(auto it=edges.begin();it!=edges.end();it++){
-
-        Edge* ed = *it;
-        QPainterPath path;
-
-        path.moveTo(ed->n1->pf);
-        if(!ed->line.isEmpty()){
-            for(auto m=ed->line.begin();m!=ed->line.end();m++){
-                path.lineTo(*m);
-            }
-        }
-        path.lineTo(ed->n2->pf);
-        painter.drawPath(path);
-    }
 }
 
 void RenderWidget::clearVector()

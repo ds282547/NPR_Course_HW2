@@ -27,15 +27,30 @@ SOURCES += \
         main.cpp \
         mainwindow.cpp \
     glwidget.cpp \
-    renderwidget.cpp
+    renderwidget.cpp \
+    glm/glm.c \
+    glm/glm_util.c \
+    glm/glmimg.c \
+    glm/glmimg_devil.c \
+    glm/glmimg_jpg.c \
+    glm/glmimg_png.c \
+    glm/glmimg_sdl.c \
+    glm/glmimg_sim.c \
+    glm_helper.c
 
 HEADERS += \
         mainwindow.h \
     glwidget.h \
-    renderwidget.h
+    renderwidget.h \
+    glm/glm.h \
+    glm/glmint.h \
+    glm_helper.h
 
 FORMS += \
         mainwindow.ui
 
 
 LIBS += "$$PWD\GL\glut32.lib"
+
+RESOURCES += \
+    shaders.qrc

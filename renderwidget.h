@@ -55,7 +55,7 @@ public:
         Point3 N;
         N.x = U.y*V.z - U.z*V.y;
         N.y = U.z*V.x - U.x*V.z;
-        N.z = U.x*V.z - U.y*V.x;
+        N.z = U.x*V.y - U.y*V.x;
         N.normalize();
         qreal r = qFloor(N.x*128)+128;
         qreal g = qFloor(N.y*128)+128;
@@ -172,7 +172,8 @@ public:
     void paintEvent(QPaintEvent * e /* event */);
 
     RenderWidget(QWidget *parent);
-    void regenRock();
+    ~RenderWidget();
+    int regenRock();
     void genBaseRock();
 
     void genAllStep();
@@ -183,11 +184,17 @@ public:
     qreal structure_height;
     qreal structure_inner_ratio;
 
+    int getRandSeed();
     void genBaseRockByPixel();
     void drawPixelRect(int x,int y,int w,int h);
     bool pixels[512][512];
 
     qreal getDisplaceAmount(qreal limitDis);
+
+    const int TOTAL_STEP = 5;
+    int current_step;
+    void showStep(int step);
+    QVector<QImage*> step_images;
 private:
     int LW,LH,RW,RWHalf,RH,RHHalf,WI,HI;
     int width,height;
@@ -213,7 +220,7 @@ private:
     void debugPt(QPointF p);
     void debugPt(Node*n);
     void debugPt(QPainter &painter,QPointF p, QColor color=Qt::red);
-    void drawResult(QPainter &painter);
+    void drawResult(int step);
     void clearVector();
     void createEdge(Node *n1, Node *n2, bool LeftRight, bool innerEdge=true);
     void genCellSize(int &w,int &h);

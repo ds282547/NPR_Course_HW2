@@ -3,6 +3,8 @@
 
 #include <QMainWindow>
 #include <QKeyEvent>
+#include <QButtonGroup>
+#include <QFileDialog>
 
 namespace Ui {
 class MainWindow;
@@ -17,15 +19,20 @@ public:
     ~MainWindow();
 
     void keyPressEvent(QKeyEvent *event);
+    void keyReleaseEvent(QKeyEvent *event);
 public slots:
-
-
-
+    void switchStep(int step);
 private slots:
     void on_pushButtonDraw_released();
 
+
+    void on_pushButtonGen_released();
+
+    void on_pushButtonLoadObj_released();
+
 private:
     Ui::MainWindow *ui;
+    QButtonGroup *stepsRatios;
 
 };
 
